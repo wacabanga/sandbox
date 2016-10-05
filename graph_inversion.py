@@ -1,13 +1,15 @@
 """Proof-of-concept tf.Graph inversion. Drafted in 2016-10-3 meeting."""
 
-import tensorflow as tf
-from queue import Queue
-
 __author__ = "Lawrence Wu and Edgar Minasyan"
 __status__ = "Prototype"
 
+from queue import Queue
+from typing import List, Tuple
 
-def invert(output):
+import tensorflow as tf
+
+
+def invert(output: tf.Tensor) -> List[tf.Tensor]:
     """Inverts a Tensorflow graph.
 
     Args:
@@ -46,7 +48,7 @@ def invert(output):
     return new_outputs
 
 
-def make_tests():
+def make_tests() -> List[Tuple[tf.Tensor, List[tf.Tensor]]]:
     """Makes (input, output) pairs. TODO: Write code to verify."""
     tests = []
 
@@ -66,7 +68,7 @@ def make_tests():
     return tests
 
 
-def print_usage():
+def print_usage() -> None:
     """Prints usage information."""
     print("Currently, tests can only be checked manually.")
     print("So, in the python interpreter:")
