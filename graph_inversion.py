@@ -102,12 +102,13 @@ def invert(output: tf.Tensor) -> List[tf.Tensor]:
             new_inputs.append(theta)
             to_invert.put((old_op._inputs[0],
                           new_tensor + tf.sub(theta, tf.floor(theta))))
-        # Function: (x, y) -> x % y. Inverse Function: z -> (theta1 * theta2 + z, theta2)
+        # Function: (x, y) -> x % y. Inverse Function: z -> (theta1 * theta2 + z, theta2), theta2 > z
         elif old_op.type == 'Mod':
             theta1 = tf.placeholder(old_tensor.dtype, name='theta1')
             theta2 = tf.placeholder(old_tensor.dtype, name='theta2')
             new_inputs.append(theta1)
             new_inputs.append(theta2)
+            # make theta2 be smaller larger than new_tensor
             to_invert.put((old_op._inputs[0],
                           theta1 * theta2 + new_tensor))
             to_invert.put((old_op._inputs[1],
@@ -154,6 +155,13 @@ def make_tests() -> List[Tuple[tf.Tensor, List[tf.Tensor]]]:
     i3 = tf.identity(tf.minimum(tf.maximum(a3, b3), c3), name='o3')
     o3 = invert(i3)
     tests.append((i3, o3))
+
+    a4 = tf.placeholder(tf.float32, name='a4')
+    b4 = tf.placeholder(tf.float32, name='b4')
+    c4 = tf.placeholder(tf.float32, name='c4')
+    i4 = tf.identity(tf.ceil(tf.mod(tf.pow(a4, b4), c4)), name='o4')
+    o4 = invert(i4)
+    tests.append((i4, o4))
 
     print("Generated (graph, inverse graph) pairs.")
     print("TODO: Test these.")
