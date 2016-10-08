@@ -90,6 +90,42 @@ def invert(output: tf.Tensor) -> List[tf.Tensor]:
                           new_tensor - tf.minimum(0.0, theta)))
             to_invert.put((old_op._inputs[1],
                           new_tensor + tf.maximum(0.0, theta)))
+        # Function: x -> Ceiling[x]. Inverse Function: z -> z - theta, 0 <= theta < 1
+        elif old_op.type == 'Ceil':
+            theta = tf.placeholder(old_tensor.dtype, name='theta')
+            new_inputs.append(theta)
+            to_invert.put((old_op._inputs[0], 
+                          new_tensor - tf.sub(theta, tf.floor(theta))))
+        # Function: x -> Floor[x]. Inverse Function: z -> z + theta, 0 <= theta < 1
+        elif old_op.type == 'Floor':
+            theta = tf.placeholder(old_tensor.dtype, name='theta')
+            new_inputs.append(theta)
+            to_invert.put((old_op._inputs[0],
+                          new_tensor + tf.sub(theta, tf.floor(theta))))
+        # Function: (x, y) -> x % y. Inverse Function: z -> (theta1 * theta2 + z, theta2)
+        elif old_op.type == 'Mod':
+            theta1 = tf.placeholder(old_tensor.dtype, name='theta1')
+            theta2 = tf.placeholder(old_tensor.dtype, name='theta2')
+            new_inputs.append(theta1)
+            new_inputs.append(theta2)
+            to_invert.put((old_op._inputs[0],
+                          theta1 * theta2 + new_tensor))
+            to_invert.put((old_op._inputs[1],
+                          theta2))
+        # Function: x -> |x|. Inverse Function: z -> theta * z, theta from {-1, 1}
+        elif old_op.type == 'Abs':
+            theta = tf.placeholder(old_tensor.dtype, name='theta')
+            new_inputs.append(theta)
+            to_invert.put((old_op._inputs[0],
+                          new_tensor * tf.sign*(theta)))
+        # Function: (x, y) -> x^y. Inverse Function: z -> (theta, log_{theta}(z))
+        elif old_op.type == 'Pow':
+            theta = tf.placeholder(old_tensor.dtype, name='theta')
+            new_inputs.append(theta)
+            to_invert.put((old_op._inputs[0],
+                          theta))
+            to_invert.put((old_op._inputs[1],
+                          tf.div(tf.log(new_tensor), tf.log(theta))))
 
     return new_outputs
 
