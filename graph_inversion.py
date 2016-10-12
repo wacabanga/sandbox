@@ -96,41 +96,41 @@ def invert(fwd_output: tf.Tensor): # Zen: 'fwd_output' less ambiguous than outpu
                           inv_tensor + tf.maximum(0.0, theta)))
         # Function: x -> Ceiling[x]. Inverse Function: z -> z - theta, 0 <= theta < 1
         elif fwd_op.type == 'Ceil':
-                theta = tf.placeholder(fwd_tensor.dtype, name='theta')
-                inv_inputs.append(theta)
-                to_invert.put((fwd_op._inputs[0],
-                              inv_tensor - tf.sub(theta, tf.floor(theta))))
-            # Function: x -> Floor[x]. Inverse Function: z -> z + theta, 0 <= theta < 1
+            theta = tf.placeholder(fwd_tensor.dtype, name='theta')
+            inv_inputs.append(theta)
+            to_invert.put((fwd_op._inputs[0],
+                          inv_tensor - tf.sub(theta, tf.floor(theta))))
+        # Function: x -> Floor[x]. Inverse Function: z -> z + theta, 0 <= theta < 1
         elif fwd_op.type == 'Floor':
-                theta = tf.placeholder(fwd_tensor.dtype, name='theta')
-                inv_inputs.append(theta)
-                to_invert.put((fwd_op._inputs[0],
-                              inv_tensor + tf.sub(theta, tf.floor(theta))))
-            # Function: (x, y) -> x % y. Inverse Function: z -> (theta1 * theta2 + z, theta2), theta2 > z
+            theta = tf.placeholder(fwd_tensor.dtype, name='theta')
+            inv_inputs.append(theta)
+            to_invert.put((fwd_op._inputs[0],
+                          inv_tensor + tf.sub(theta, tf.floor(theta))))
+        # Function: (x, y) -> x % y. Inverse Function: z -> (theta1 * theta2 + z, theta2), theta2 > z
         elif fwd_op.type == 'Mod':
-                theta1 = tf.placeholder(fwd_tensor.dtype, name='theta1')
-                theta2 = tf.placeholder(fwd_tensor.dtype, name='theta2')
-                inv_inputs.append(theta1)
-                inv_inputs.append(theta2)
-                # make theta2 be smaller larger than inv_tensor
-                to_invert.put((fwd_op._inputs[0],
-                              theta1 * theta2 + inv_tensor))
-                to_invert.put((fwd_op._inputs[1],
-                              theta2))
-            # Function: x -> |x|. Inverse Function: z -> theta * z, theta from {-1, 1}
+            theta1 = tf.placeholder(fwd_tensor.dtype, name='theta1')
+            theta2 = tf.placeholder(fwd_tensor.dtype, name='theta2')
+            inv_inputs.append(theta1)
+            inv_inputs.append(theta2)
+            # make theta2 be smaller larger than inv_tensor
+            to_invert.put((fwd_op._inputs[0],
+                          theta1 * theta2 + inv_tensor))
+            to_invert.put((fwd_op._inputs[1],
+                          theta2))
+        # Function: x -> |x|. Inverse Function: z -> theta * z, theta from {-1, 1}
         elif fwd_op.type == 'Abs':
-                theta = tf.placeholder(fwd_tensor.dtype, name='theta')
-                inv_inputs.append(theta)
-                to_invert.put((fwd_op._inputs[0],
-                              inv_tensor * tf.sign*(theta)))
-            # Function: (x, y) -> x^y. Inverse Function: z -> (theta, log_{theta}(z))
+            theta = tf.placeholder(fwd_tensor.dtype, name='theta')
+            inv_inputs.append(theta)
+            to_invert.put((fwd_op._inputs[0],
+                          inv_tensor * tf.sign*(theta)))
+        # Function: (x, y) -> x^y. Inverse Function: z -> (theta, log_{theta}(z))
         elif fwd_op.type == 'Pow':
-                theta = tf.placeholder(fwd_tensor.dtype, name='theta')
-                inv_inputs.append(theta)
-                to_invert.put((fwd_op._inputs[0],
-                              theta))
-                to_invert.put((fwd_op._inputs[1],
-                              tf.div(tf.log(inv_tensor), tf.log(theta))))
+            theta = tf.placeholder(fwd_tensor.dtype, name='theta')
+            inv_inputs.append(theta)
+            to_invert.put((fwd_op._inputs[0],
+                          theta))
+            to_invert.put((fwd_op._inputs[1],
+                          tf.div(tf.log(inv_tensor), tf.log(theta))))
 
     return inv_outputs
 
@@ -138,19 +138,7 @@ def invert(fwd_output: tf.Tensor): # Zen: 'fwd_output' less ambiguous than outpu
 def make_tests() -> List[Tuple[tf.Tensor, List[tf.Tensor]]]:
     """Generate test cases and visualization."""
     sess = tf.Session()
-    # Zen: This will result in a graph with three outputs.
-    #      Make sure your solution also makes the following work
     tests = []
-    x = tf.placeholder(tf.float32, name='x')
-    y = tf.placeholder(tf.float32, name='y')
-    out = x*y+x
-    inv = invert(out)
-
-    tests = []
-    x = tf.placeholder(tf.float32, name='x')
-    y = tf.placeholder(tf.float32, name='y')
-    out = y**(x*y+x)
-    inv = invert(out)
 
     a1 = tf.placeholder(tf.float32, name='a1')
     b1 = tf.placeholder(tf.float32, name='b1')
@@ -178,6 +166,20 @@ def make_tests() -> List[Tuple[tf.Tensor, List[tf.Tensor]]]:
     i4 = tf.identity(tf.ceil(tf.mod(tf.pow(a4, b4), c4)), name='o4')
     o4 = invert(i4)
     tests.append((i4, o4))
+
+    # Zen: This will result in a graph with three outputs.
+    #      Make sure your solution also makes the following work
+    a5 = tf.placeholder(tf.float32, name='a5')
+    b5 = tf.placeholder(tf.float32, name='b5')
+    i5 = tf.identity(a5 * b5 + a5, name='o5')
+    o5 = invert(i5)
+    tests.append((i5, o5))
+
+    a6 = tf.placeholder(tf.float32, name='a6')
+    b6 = tf.placeholder(tf.float32, name='b6')
+    i6 = tf.identity(b6 ** (a6 * b6 + a6), name='o6')
+    o6 = invert(i6)
+    tests.append((i6, o6))
 
     print("Generated (graph, inverse graph) pairs.")
     print("TODO: Test these.")
