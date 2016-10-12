@@ -10,9 +10,10 @@ from typing import List, Tuple
 
 from numpy.random import randn
 import tensorflow as tf
+import pdb
 
 
-def invert(output: tf.Tensor) -> List[tf.Tensor]:
+def invert(fwd_output: tf.Tensor): # Zen: 'fwd_output' less ambiguous than output
     """Inverts a Tensorflow graph.
 
     Args:
@@ -26,115 +27,130 @@ def invert(output: tf.Tensor) -> List[tf.Tensor]:
     # TODO handle not in domain
     # TODO make a useful API
     # TODO think about shapes other than scalars
-    # naming: "new" means of inverse graph, "old" means of original graph
-    new_name = output.name.split(':')[0]
-    first_new_input = tf.placeholder(output.dtype, name=new_name)
-    new_inputs = [first_new_input]
-    new_outputs = []
+    # naming: "inv" means of inverse graph, "old" means of original graph
+    # Zen: Maybe add 'inv' to the name
+    inv_name = fwd_output.name.split(':')[0]
+    first_inv_input = tf.placeholder(fwd_output.dtype, name=inv_name)
+    inv_inputs = [first_inv_input]
+    inv_outputs = []
     to_invert = Queue()
-    to_invert.put((output, first_new_input))
+    # Queue of pairs of outputs of fwd_graph and corresponding input to inv?
+    to_invert.put((fwd_output, first_inv_input))
 
     while not to_invert.empty():
-        (old_tensor, new_tensor) = to_invert.get()
-        old_op = old_tensor.op
-        if old_op.type == 'Placeholder':
-            new_name = 'rec_' + old_tensor.name
-            new_name = new_name.split(':')[0]
-            new_tensor = tf.identity(new_tensor, name=new_name)
-            new_outputs.append(new_tensor)
-        elif old_op.type == 'Identity':
-            to_invert.put((old_op._inputs[0], new_tensor))
-        elif old_op.type == 'Add':
-            theta = tf.placeholder(old_tensor.dtype, name='theta')
-            new_inputs.append(theta)
-            to_invert.put((old_op._inputs[0], new_tensor - theta))
-            to_invert.put((old_op._inputs[1], theta))
-        elif old_op.type == 'Mul':
-            theta = tf.placeholder(old_tensor.dtype, name='theta')
-            new_inputs.append(theta)
-            to_invert.put((old_op._inputs[0], new_tensor / theta))
-            to_invert.put((old_op._inputs[1], theta))
-        elif old_op.type == 'Div':
-            theta = tf.placeholder(old_tensor.dtype, name='theta')
-            new_inputs.append(theta)
-            to_invert.put((old_op._inputs[0], new_tensor * theta))
-            to_invert.put((old_op._inputs[1], theta))
-        elif old_op.type == 'Sub':
-            theta = tf.placeholder(old_tensor.dtype, name='theta')
-            new_inputs.append(theta)
-            to_invert.put((old_op._inputs[0], new_tensor + theta))
-            to_invert.put((old_op._inputs[1], theta))
-        elif old_op.type == 'Square':
+        (fwd_tensor, inv_tensor) = to_invert.get()
+        fwd_op = fwd_tensor.op
+        if fwd_op.type == 'Placeholder':
+            inv_name = 'rec_' + fwd_tensor.name # Zen: rec? reciprocal?
+            inv_name = inv_name.split(':')[0]
+            # Zen: Why create identity op and nost just return hte tensor?
+            inv_tensor = tf.identity(inv_tensor, name=inv_name)
+            inv_outputs.append(inv_tensor)
+        elif fwd_op.type == 'Identity':
+            to_invert.put((fwd_op._inputs[0], inv_tensor))
+        elif fwd_op.type == 'Add':
+            theta = tf.placeholder(fwd_tensor.dtype, name='theta')
+            inv_inputs.append(theta)
+            to_invert.put((fwd_op._inputs[0], inv_tensor - theta))
+            to_invert.put((fwd_op._inputs[1], theta))
+        elif fwd_op.type == 'Mul':
+            theta = tf.placeholder(fwd_tensor.dtype, name='theta')
+            inv_inputs.append(theta)
+            to_invert.put((fwd_op._inputs[0], inv_tensor / theta))
+            to_invert.put((fwd_op._inputs[1], theta))
+        elif fwd_op.type == 'Div':
+            theta = tf.placeholder(fwd_tensor.dtype, name='theta')
+            inv_inputs.append(theta)
+            to_invert.put((fwd_op._inputs[0], inv_tensor * theta))
+            to_invert.put((fwd_op._inputs[1], theta))
+        elif fwd_op.type == 'Sub':
+            theta = tf.placeholder(fwd_tensor.dtype, name='theta')
+            inv_inputs.append(theta)
+            to_invert.put((fwd_op._inputs[0], inv_tensor + theta))
+            to_invert.put((fwd_op._inputs[1], theta))
+        elif fwd_op.type == 'Square':
             theta = tf.placeholder(tf.float32, name='theta')
-            new_inputs.append(theta)
-            to_invert.put((old_op._inputs[0],
-                          tf.sqrt(new_tensor) * tf.sign(theta)))
-        elif old_op.type == 'Sqrt':
-            to_invert.put((old_op._inputs[0], tf.square(new_tensor)))
-        elif old_op.type == 'Sign':
-            theta = tf.placeholder(old_op._inputs[0].op.dtype, name='theta')
-            new_inputs.append(theta)
-            to_invert.put((old_op._inputs[0],
-                          new_tensor * tf.abs(theta)))
-        elif old_op.type == 'Maximum':
-            theta = tf.placeholder(new_tensor.dtype, name='theta')
-            new_inputs.append(theta)
-            to_invert.put((old_op._inputs[0],
-                          new_tensor + tf.minimum(0.0, theta)))
-            to_invert.put((old_op._inputs[1],
-                          new_tensor - tf.maximum(0.0, theta)))
-        elif old_op.type == 'Minimum':
-            theta = tf.placeholder(new_tensor.dtype, name='theta')
-            new_inputs.append(theta)
-            to_invert.put((old_op._inputs[0],
-                          new_tensor - tf.minimum(0.0, theta)))
-            to_invert.put((old_op._inputs[1],
-                          new_tensor + tf.maximum(0.0, theta)))
+            inv_inputs.append(theta)
+            to_invert.put((fwd_op._inputs[0],
+                          tf.sqrt(inv_tensor) * tf.sign(theta)))
+        elif fwd_op.type == 'Sqrt':
+            to_invert.put((fwd_op._inputs[0], tf.square(inv_tensor)))
+        elif fwd_op.type == 'Sign':
+            theta = tf.placeholder(fwd_op._inputs[0].op.dtype, name='theta')
+            inv_inputs.append(theta)
+            to_invert.put((fwd_op._inputs[0],
+                          inv_tensor * tf.abs(theta)))
+        elif fwd_op.type == 'Maximum':
+            theta = tf.placeholder(inv_tensor.dtype, name='theta')
+            inv_inputs.append(theta)
+            to_invert.put((fwd_op._inputs[0],
+                          inv_tensor + tf.minimum(0.0, theta)))
+            to_invert.put((fwd_op._inputs[1],
+                          inv_tensor - tf.maximum(0.0, theta)))
+        elif fwd_op.type == 'Minimum':
+            theta = tf.placeholder(inv_tensor.dtype, name='theta')
+            inv_inputs.append(theta)
+            to_invert.put((fwd_op._inputs[0],
+                          inv_tensor - tf.minimum(0.0, theta)))
+            to_invert.put((fwd_op._inputs[1],
+                          inv_tensor + tf.maximum(0.0, theta)))
         # Function: x -> Ceiling[x]. Inverse Function: z -> z - theta, 0 <= theta < 1
-        elif old_op.type == 'Ceil':
-            theta = tf.placeholder(old_tensor.dtype, name='theta')
-            new_inputs.append(theta)
-            to_invert.put((old_op._inputs[0], 
-                          new_tensor - tf.sub(theta, tf.floor(theta))))
-        # Function: x -> Floor[x]. Inverse Function: z -> z + theta, 0 <= theta < 1
-        elif old_op.type == 'Floor':
-            theta = tf.placeholder(old_tensor.dtype, name='theta')
-            new_inputs.append(theta)
-            to_invert.put((old_op._inputs[0],
-                          new_tensor + tf.sub(theta, tf.floor(theta))))
-        # Function: (x, y) -> x % y. Inverse Function: z -> (theta1 * theta2 + z, theta2), theta2 > z
-        elif old_op.type == 'Mod':
-            theta1 = tf.placeholder(old_tensor.dtype, name='theta1')
-            theta2 = tf.placeholder(old_tensor.dtype, name='theta2')
-            new_inputs.append(theta1)
-            new_inputs.append(theta2)
-            # make theta2 be smaller larger than new_tensor
-            to_invert.put((old_op._inputs[0],
-                          theta1 * theta2 + new_tensor))
-            to_invert.put((old_op._inputs[1],
-                          theta2))
-        # Function: x -> |x|. Inverse Function: z -> theta * z, theta from {-1, 1}
-        elif old_op.type == 'Abs':
-            theta = tf.placeholder(old_tensor.dtype, name='theta')
-            new_inputs.append(theta)
-            to_invert.put((old_op._inputs[0],
-                          new_tensor * tf.sign*(theta)))
-        # Function: (x, y) -> x^y. Inverse Function: z -> (theta, log_{theta}(z))
-        elif old_op.type == 'Pow':
-            theta = tf.placeholder(old_tensor.dtype, name='theta')
-            new_inputs.append(theta)
-            to_invert.put((old_op._inputs[0],
-                          theta))
-            to_invert.put((old_op._inputs[1],
-                          tf.div(tf.log(new_tensor), tf.log(theta))))
+        elif fwd_op.type == 'Ceil':
+                theta = tf.placeholder(fwd_tensor.dtype, name='theta')
+                inv_inputs.append(theta)
+                to_invert.put((fwd_op._inputs[0],
+                              inv_tensor - tf.sub(theta, tf.floor(theta))))
+            # Function: x -> Floor[x]. Inverse Function: z -> z + theta, 0 <= theta < 1
+        elif fwd_op.type == 'Floor':
+                theta = tf.placeholder(fwd_tensor.dtype, name='theta')
+                inv_inputs.append(theta)
+                to_invert.put((fwd_op._inputs[0],
+                              inv_tensor + tf.sub(theta, tf.floor(theta))))
+            # Function: (x, y) -> x % y. Inverse Function: z -> (theta1 * theta2 + z, theta2), theta2 > z
+        elif fwd_op.type == 'Mod':
+                theta1 = tf.placeholder(fwd_tensor.dtype, name='theta1')
+                theta2 = tf.placeholder(fwd_tensor.dtype, name='theta2')
+                inv_inputs.append(theta1)
+                inv_inputs.append(theta2)
+                # make theta2 be smaller larger than inv_tensor
+                to_invert.put((fwd_op._inputs[0],
+                              theta1 * theta2 + inv_tensor))
+                to_invert.put((fwd_op._inputs[1],
+                              theta2))
+            # Function: x -> |x|. Inverse Function: z -> theta * z, theta from {-1, 1}
+        elif fwd_op.type == 'Abs':
+                theta = tf.placeholder(fwd_tensor.dtype, name='theta')
+                inv_inputs.append(theta)
+                to_invert.put((fwd_op._inputs[0],
+                              inv_tensor * tf.sign*(theta)))
+            # Function: (x, y) -> x^y. Inverse Function: z -> (theta, log_{theta}(z))
+        elif fwd_op.type == 'Pow':
+                theta = tf.placeholder(fwd_tensor.dtype, name='theta')
+                inv_inputs.append(theta)
+                to_invert.put((fwd_op._inputs[0],
+                              theta))
+                to_invert.put((fwd_op._inputs[1],
+                              tf.div(tf.log(inv_tensor), tf.log(theta))))
 
-    return new_outputs
+    return inv_outputs
 
 
 def make_tests() -> List[Tuple[tf.Tensor, List[tf.Tensor]]]:
     """Generate test cases and visualization."""
     sess = tf.Session()
+    # Zen: This will result in a graph with three outputs.
+    #      Make sure your solution also makes the following work
     tests = []
+    x = tf.placeholder(tf.float32, name='x')
+    y = tf.placeholder(tf.float32, name='y')
+    out = x*y+x
+    inv = invert(out)
+
+    tests = []
+    x = tf.placeholder(tf.float32, name='x')
+    y = tf.placeholder(tf.float32, name='y')
+    out = y**(x*y+x)
+    inv = invert(out)
 
     a1 = tf.placeholder(tf.float32, name='a1')
     b1 = tf.placeholder(tf.float32, name='b1')
