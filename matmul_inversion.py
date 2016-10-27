@@ -20,7 +20,6 @@ def inverse_matmul(c):
 
     max_dim = 2**5 # TODO decide on a limit on the larger dimension
     m = np.random.randint(rank, max_dim)
-    print(m)
     # the matrix rows of c are independent
     if rank == k:
         for i in range(k, m):
