@@ -3,10 +3,13 @@
 from typing import Tuple
 
 import numpy as np
+from scipy.fftpack import fftshift, ifftshift, fftn, ifftn
+from scipy.signal import fftconvolve
 import tensorflow as tf
 
 
-def huge_matrix(filter_mat: np.ndarray, output_shape: Tuple[int, int]) -> np.ndarray:
+def huge_matrix(filter_mat: np.ndarray,
+                output_shape: Tuple[int, int]) -> np.ndarray:
     """
     This matrix contains a huge amount of redundant information and 0's.
 
@@ -23,7 +26,8 @@ def huge_matrix(filter_mat: np.ndarray, output_shape: Tuple[int, int]) -> np.nda
         for j in range(Q):
             for k in range(N):
                 for l in range(M):
-                    huge_mat[i * Q + j][(i + k) * S + (j + l)] = filter_mat[k][l]
+                    huge_mat[i * Q + j][(i + k) * S + (j + l)] = \
+                        filter_mat[k][l]
     # we are in row echelon form! so we can just add a standard basis vector
     # for each pivot-less column:
     # http://math.stackexchange.com/questions/1530314/adding-linearly-independent-row-vectors-to-a-matrix
@@ -66,15 +70,34 @@ def fwd_conv2d(input_mat, filter_mat):
     (P, Q) = filter_mat.shape
     inp_feed = input_mat.reshape((1, N, M, 1))
     filt_feed = filter_mat.reshape((P, Q, 1, 1))
-    op = tf.nn.conv2d(inp, filt, strides=[1, 1, 1, 1], padding='VALID')
+    op = tf.nn.conv2d(inp, filt, strides=[1, 1, 1, 1], padding='SAME')
     with tf.Session() as sess:
         return sess.run(op, feed_dict={inp: inp_feed, filt: filt_feed})
 
 
-def test_random() -> None:
-    """Tests some random 2x2 matrices."""
-    NTESTS = 30
-    for _ in range(NTESTS):
+def fwd_conv2d_fft(input_mat, filter_mat):
+    """Simulates tf.nn.conv2d using scipy fft."""
+    flipped_mat = filter_mat[::-1, ::-1]
+    # input_freq = fftshift(fftn(input_mat))
+    # filter_freq = fftshift(fftn(flipped_mat))
+    return fftconvolve(input_mat, flipped_mat, mode='same')
+    # return fftshift(ifftn(ifftshift(input_freq * filter_freq)))
+
+
+def test_fwd() -> None:
+    """Tests fwd_conv2d vs fwd_conv2d_fft."""
+    input_mat = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    filter_mat = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    fwd = fwd_conv2d(input_mat, filter_mat)
+    fwd_fft = fwd_conv2d_fft(input_mat, filter_mat)
+    print(fwd)
+    print(fwd_fft)
+
+
+def test_inv() -> None:
+    """Tests inverse conv2d on some random matrices."""
+    ntests = 30
+    for _ in range(ntests):
         # output_mat = np.array([[1, 2], [3, 4]])
         # filter_mat = np.array([[1, 2], [3, 4]])
         # theta = np.array([1, 2, 3, 4, 5])
@@ -98,4 +121,5 @@ def test_random() -> None:
                                                         input_mat)
 
 if __name__ == '__main__':
-    test_random()
+    test_fwd()
+    # test_inv()
